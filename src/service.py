@@ -48,19 +48,6 @@ class RelayHandler:
 
     # ── aiosmtpd hooks ───────────────────────────────────────────────
 
-    async def handle_EHLO(self, server, session, envelope, hostname, responses):
-        """Accept the EHLO and advertise no AUTH (plain relay, authorised by IP)."""
-        session.host_name = hostname
-        return responses
-
-    async def handle_MAIL(self, server, session, envelope, address, mail_options):
-        envelope.mail_from = address
-        return '250 OK'
-
-    async def handle_RCPT(self, server, session, envelope, address, rcpt_options):
-        envelope.rcpt_tos.append(address)
-        return '250 OK'
-
     async def handle_DATA(self, server, session, envelope):
         """Route the message once the DATA phase is complete."""
         client_ip = session.peer[0] if session.peer else ''
@@ -110,6 +97,13 @@ class RelayHandler:
         """Forward to the configured local delivery MTA."""
         host = self.config.local_delivery_host
         port = self.config.local_delivery_port
+        mx_label = f"{host}:{port}"
+
+        if not self.config.enabled:
+            log_request(sender, recipient, "local", mx_label,
+                        "DRY-RUN accepted", envelope,
+                        direction=direction, client_address=client_ip)
+            return 250, "Dry-run accepted"
 
         log_debug(f"  LOCAL {sender} -> {recipient} via {host}:{port}")
 
@@ -117,7 +111,6 @@ class RelayHandler:
             host, port, sender, [recipient], envelope.content
         )
 
-        mx_label = f"{host}:{port}"
         self.config.print_csv(sender, recipient, "local", mx_label,
                                direction=direction, client_address=client_ip)
         self.config.send_to_graylog(sender, recipient, "local", mx_label,

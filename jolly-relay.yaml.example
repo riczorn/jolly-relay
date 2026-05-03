@@ -34,15 +34,14 @@
 # you'll have one group for each difficult recipient.
 
 config:
-  # if not enabled, it will always respond "DUNNO", but it will log
-  # its choices. Useful for debugging before going live.
-  # DUNNO tells Postfix to ignore the response and continue processing the file.
+  # if not enabled, mail is accepted and logged but NOT forwarded.
+  # Useful for testing routing rules before going live.
   enabled: false
 
   # unless the path is absolute, this will default to the
-  # folder containing the calling script
-  # if you do NOT wish to log, just omit this value
-  # the file must be writable by the user running the script
+  # folder containing the calling script.
+  # if you do NOT wish to log, just omit this value.
+  # the file must be writable by the user running the script.
   log_file: /var/log/jolly-relay.log
 
   # save a csv file in the format: date;sender;recipient;mx_group;mx_host
@@ -53,32 +52,28 @@ config:
   # graylog_port: 12201
   # servername: mx1-myhostname
 
-  # log payloads and results to the log file
+  # log envelope and routing decisions to the log file
   verbose: true
 
   bind_host: 127.0.0.1
   bind_port: 9725
 
-  # restrict which remote servers may connect (IPv4, IPv6, or DNS names)
-  # to this service.
-  # leave empty or set to 0.0.0.0 to accept from all
-  allowed_clients: [127.0.0.1]
+  # Restrict which SMTP clients may connect (IPv4, IPv6, or DNS names).
+  # Leave empty or set to 0.0.0.0 to accept from all.
+  allowed_hosts: [127.0.0.1]
 
-  # list of local domains: keep the list empty and all mail will be accepted.
-  # otherwise, only the listed domains will be accepted.
+  # Where to forward inbound mail (recipient domain is in local_domains).
+  # Format: host:port
+  local_delivery: 127.0.0.1:25
+
+  # List of local domains: mail addressed to these is forwarded to
+  # local_delivery instead of an external MX.
+  # Keep empty and ALL mail will be treated as outbound.
   local_domains: []
 
-  # list of local networks authorized to relay through this server; any email from them
-  # will be treated as outgoing.
-  local_networks: []
-
-  # automatically populate local domains from /etc/postfix/virtual
+  # Automatically populate local domains from /etc/postfix/virtual
   auto_populate_local_domains: true
   postfix_virtual_file: /etc/postfix/virtual
-
-  # if you use authenticated senders, reject the email if the sender address
-  # does not match the sasl_username to prevent spoofing
-  reject_sender_login_mismatch: false
 
 servers:
   hosts:
@@ -88,22 +83,22 @@ servers:
     # with 0 = not chosen at all and 100 = chosen on every iteration.
     # the attribute name, i.e. `mx1`, is used below for creating groups
     mx1:
-      address: relay:[mx1.example.com]:25
+      address: mx1.example.com:25
       weight: 100 # default
     mx2:
-      address: relay:[mx2.example.com]:25
+      address: mx2.example.com:25
     mx3:
-      address: relay:[mx3.example.com]:25
+      address: mx3.example.com:25
       weight: 50
     mx4:
-      address: relay:[mx4.example.com]:25
+      address: mx4.example.com:25
     mx5:
-      address: relay:[mx5.example.com]:25
+      address: mx5.example.com:25
       weight: 10
     mx6:
-      address: relay:[mx6.example.com]:25
+      address: mx6.example.com:25
     mx7:
-      address: relay:[mx7.example.com]:25
+      address: mx7.example.com:25
 
   # create convenient groups of servers using the server names above
   groups:
