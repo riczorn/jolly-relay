@@ -1,0 +1,8 @@
+start.sh
+docs
+.venv
+__pycache__
+jolly-relay.yaml
+jolly-relay.log
+tests/*.txt 
+tests/payloads

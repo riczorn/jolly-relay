@@ -1,0 +1,159 @@
+# Jolly Relay sample configuration file.
+#
+# Copy this file to /etc/postfix/jolly-relay.yaml.
+# Replace example.com with your main sending domain. Delete example.net rules.
+#
+# The service will look for this file in /etc/postfix/jolly-relay.yaml first,
+# and then in its local directory, unless overridden by the `-c` parameter.
+#
+# This sample configuration assumes your server sends mail from the
+# example.com domain.
+#
+# the purpose of this example configuration is to handle:
+#
+# **Good group**
+# Nice, decent people that send email following the netiquette. Or at least they
+# don't end us up in a blacklist every other day.
+#
+# **Bad group**
+# **difficult senders**
+# i.e. some senders who typically send newsletters from their mail program
+# putting 200 people in CC: or BCC: , not adding an unsubscribe, and making
+# our lives hellish; we'll use a different set of mx servers for them, since they
+# are more likely to end up in a blocklist, or creating huge queues.
+
+# **Picky group**
+# We also have **difficult recipients**: these are certain mail servers
+# that employ sketchy block lists, such as:
+#   - UCEProtect level 3, which includes a few millions OVH IPv4 addresses
+#     simply because they are in the same net
+#   - microsoft, that has their own private blacklists
+#   - apple
+# The likes of these may require us to limit the set of mx servers we can use.
+# In this example, we'll create a *picky* group for them. In real life,
+# you'll have one group for each difficult recipient.
+
+config:
+  # if not enabled, it will always respond "DUNNO", but it will log
+  # its choices. Useful for debugging before going live.
+  # DUNNO tells Postfix to ignore the response and continue processing the file.
+  enabled: false
+
+  # unless the path is absolute, this will default to the
+  # folder containing the calling script
+  # if you do NOT wish to log, just omit this value
+  # the file must be writable by the user running the script
+  log_file: /var/log/jolly-relay.log
+
+  # save a csv file in the format: date;sender;recipient;mx_group;mx_host
+  csv_file: /var/log/jolly-relay-messages.csv
+
+  # Graylog GELF/UDP logging. Leave graylog_server empty to disable.
+  # graylog_server: log.example.com
+  # graylog_port: 12201
+  # servername: mx1-myhostname
+
+  # log payloads and results to the log file
+  verbose: true
+
+  bind_host: 127.0.0.1
+  bind_port: 9725
+
+  # restrict which remote servers may connect (IPv4, IPv6, or DNS names)
+  # to this service.
+  # leave empty or set to 0.0.0.0 to accept from all
+  allowed_clients: [127.0.0.1]
+
+  # list of local domains: keep the list empty and all mail will be accepted.
+  # otherwise, only the listed domains will be accepted.
+  local_domains: []
+
+  # list of local networks authorized to relay through this server; any email from them
+  # will be treated as outgoing.
+  local_networks: []
+
+  # automatically populate local domains from /etc/postfix/virtual
+  auto_populate_local_domains: true
+  postfix_virtual_file: /etc/postfix/virtual
+
+  # if you use authenticated senders, reject the email if the sender address
+  # does not match the sasl_username to prevent spoofing
+  reject_sender_login_mismatch: false
+
+servers:
+  hosts:
+    # Define your server adddresses (name or IP)
+    # along with the optional weight: param, which defaults to 100.
+    # the `weight` influences how often this server is chosen in the iteration,
+    # with 0 = not chosen at all and 100 = chosen on every iteration.
+    # the attribute name, i.e. `mx1`, is used below for creating groups
+    mx1:
+      address: relay:[mx1.example.com]:25
+      weight: 100 # default
+    mx2:
+      address: relay:[mx2.example.com]:25
+    mx3:
+      address: relay:[mx3.example.com]:25
+      weight: 50
+    mx4:
+      address: relay:[mx4.example.com]:25
+    mx5:
+      address: relay:[mx5.example.com]:25
+      weight: 10
+    mx6:
+      address: relay:[mx6.example.com]:25
+    mx7:
+      address: relay:[mx7.example.com]:25
+
+  # create convenient groups of servers using the server names above
+  groups:
+    good: [mx1, mx2, mx3]
+    bad: [mx4, mx5, mx6, mx7]
+    picky: [mx3]
+    gmail: [mx1, mx3]
+    microsoft: [mx2, mx4]
+    microbad: [mx7]
+
+  default: DUNNO
+
+sender_rules:
+  # the order of the rules is important:
+  # hence email domains should always come after email addresses:
+  #   natasha@example.com: good
+  #   valia@example.com: bad
+  #   example.com: good
+
+  # The rules are parsed until a match is found.
+
+  newsletter@example.com: bad
+  roger@example.com: good
+  fred@example.com: bad
+  laura@example.com: bad
+  jane@example.com: good
+  info@example.com: good
+
+recipient_rules:
+  apple.com: picky
+  yahoo.com: picky
+  gmail.com: gmail
+  microsoft.com: microsoft
+  outlook.com: microsoft
+  hotmail.com: microsoft
+
+combined_rules:
+  # Match combinations of sender and recipient rule results.
+  # The key format is "sender_group,recipient_group".
+  # If a match is found here, it takes precedence over both individual rules.
+  # If sender is good and recipient is picky, use the picky servers;
+  # This rule is really redundant as this would be the default action.
+  "good,picky": picky
+
+  # If sender is bad and recipient is good, use the **bad** servers
+  "bad,good": bad
+
+  # If sender is bad and recipient is picky, use the **mx7** server only
+  "bad,picky": [mx7]
+
+  # Finetune server selection for bad senders and other picky recipients
+  "bad,gmail": [mx5, mx6]
+  "bad,microsoft": microbad
