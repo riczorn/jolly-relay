@@ -48,6 +48,12 @@ class RelayHandler:
 
     # ── aiosmtpd hooks ───────────────────────────────────────────────
 
+    async def handle_RCPT(self, server, _session, envelope, address, _rcpt_options):
+        if '@' not in address:
+            return '501 Invalid recipient address'
+        envelope.rcpt_tos.append(address)
+        return '250 OK'
+
     async def handle_DATA(self, server, session, envelope):
         """Route the message once the DATA phase is complete."""
         client_ip = session.peer[0] if session.peer else ''
@@ -100,6 +106,8 @@ class RelayHandler:
         mx_label = f"{host}:{port}"
 
         if not self.config.enabled:
+            self.config.print_csv(sender, recipient, "local", "n/a",
+                                  direction=direction, client_address=client_ip)
             log_request(sender, recipient, "local", mx_label,
                         "DRY-RUN accepted", envelope,
                         direction=direction, client_address=client_ip)
@@ -125,6 +133,8 @@ class RelayHandler:
         """Select an external MX and deliver."""
         if not self.config.enabled:
             # Dry-run: log only, accept without forwarding
+            self.config.print_csv(sender, recipient, "n/a", "n/a",
+                                  direction=direction, client_address=client_ip)
             log_request(sender, recipient, "n/a", "n/a",
                         "DRY-RUN accepted", envelope,
                         direction=direction, client_address=client_ip)
@@ -133,6 +143,8 @@ class RelayHandler:
         mx_server, group = self.mx_router(sender, recipient, self.config.cache_ttl)
 
         if not mx_server:
+            self.config.print_csv(sender, recipient, group or "n/a", "n/a",
+                                  direction=direction, client_address=client_ip)
             log_request(sender, recipient, group or "n/a", "n/a",
                         "no route", envelope,
                         direction=direction, client_address=client_ip)
@@ -326,4 +338,4 @@ class _AllowlistController(Controller):
                     return
                 super().connection_made(transport)
 
-        return GuardedSMTP(self._handler, hostname=self.hostname)
+        return GuardedSMTP(self.handler, **self.SMTP_kwargs)

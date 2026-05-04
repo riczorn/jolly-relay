@@ -152,7 +152,7 @@ class Config:
         self.servers = []
         self.logger = False
         self.csv_file = None
-        self.csv_buffer = []
+        self.csv_buffer = []  # kept for compat; no longer used
         self.csv_lock = threading.Lock()
         self.csv_flush_thread = None
         self.enabled = False
@@ -496,10 +496,8 @@ class Config:
         return False
 
     def is_local_domain(self, domain):
-        if not domain:
+        if not domain or not self.local_domains:
             return False
-        if len(self.local_domains) == 0:
-            return True
         domain = domain.lower()
         for local_dom in self.local_domains:
             if domain == local_dom or domain.endswith('.' + local_dom):
@@ -522,36 +520,24 @@ class Config:
         return output
 
     def print_csv(self, sender, recipient, mx_group, mx_host, direction="", client_address="", sasl_username=""):
-        if self.csv_file:
-            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            csv_line = f"{now_str};{sender};{recipient};{mx_group};{mx_host};{client_address};{direction}"
-            sasl_info = f"sasl:{sasl_username}" if (sasl_username and sasl_username != sender) else ""
-            csv_line += f";{sasl_info}\n"
-            with self.csv_lock:
-                self.csv_buffer.append(csv_line)
-
-    def flush_csv(self):
         if not self.csv_file:
             return
-        with self.csv_lock:
-            if not self.csv_buffer:
-                return
-            lines = self.csv_buffer[:]
-            self.csv_buffer.clear()
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        csv_line = f"{now_str};{sender};{recipient};{mx_group};{mx_host};{client_address};{direction}"
+        sasl_info = f"sasl:{sasl_username}" if (sasl_username and sasl_username != sender) else ""
+        csv_line += f";{sasl_info}\n"
         try:
-            with open(self.csv_file, 'a') as f:
-                f.writelines(lines)
+            with self.csv_lock:
+                with open(self.csv_file, 'a') as f:
+                    f.write(csv_line)
         except Exception as e:
             log(f"ERROR: Failed to write to CSV log {self.csv_file} ({e})", to_stderr=True)
 
+    def flush_csv(self):
+        pass  # writes are now immediate; kept for compatibility with callers
+
     def start_csv_flush_thread(self):
-        def _flush_loop():
-            while True:
-                import time
-                time.sleep(10)
-                self.flush_csv()
-        self.csv_flush_thread = threading.Thread(target=_flush_loop, daemon=True)
-        self.csv_flush_thread.start()
+        pass  # no-op: writes are immediate
 
     def send_to_graylog(self, sender, recipient, mx_group, mx_host, direction="", client_address="", sasl_username=""):
         if not self.graylog_server or not self._graylog_sock:

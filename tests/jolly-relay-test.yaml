@@ -1,0 +1,74 @@
+# Test configuration for jolly-relay.
+# Mirrors jolly-relay.yaml.example but uses host:port address format.
+
+config:
+  enabled: true
+
+  log_file: /var/log/jolly-relay.log
+  csv_file: /var/log/jolly-relay-messages.csv
+
+  verbose: false
+
+  bind_host: 127.0.0.1
+  bind_port: 9725
+
+  allowed_hosts: [127.0.0.1]
+
+  local_delivery: 127.0.0.1:25
+
+  local_domains: []
+
+  auto_populate_local_domains: false
+
+servers:
+  hosts:
+    mx1:
+      address: mx1.example.com:25
+      weight: 100
+    mx2:
+      address: mx2.example.com:25
+    mx3:
+      address: mx3.example.com:25
+      weight: 50
+    mx4:
+      address: mx4.example.com:25
+    mx5:
+      address: mx5.example.com:25
+      weight: 10
+    mx6:
+      address: mx6.example.com:25
+    mx7:
+      address: mx7.example.com:25
+
+  groups:
+    good: [mx1, mx2, mx3]
+    bad: [mx4, mx5, mx6, mx7]
+    picky: [mx3]
+    gmail: [mx1, mx3]
+    microsoft: [mx2, mx4]
+    microbad: [mx7]
+
+  default: DUNNO
+
+sender_rules:
+  newsletter@example.com: bad
+  roger@example.com: good
+  fred@example.com: bad
+  laura@example.com: bad
+  jane@example.com: good
+  info@example.com: good
+
+recipient_rules:
+  apple.com: picky
+  yahoo.com: picky
+  gmail.com: gmail
+  microsoft.com: microsoft
+  outlook.com: microsoft
+  hotmail.com: microsoft
+
+combined_rules:
+  "good,picky": picky
+  "bad,good": bad
+  "bad,picky": [mx7]
+  "bad,gmail": [mx5, mx6]
+  "bad,microsoft": microbad
