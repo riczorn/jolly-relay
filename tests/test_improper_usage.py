@@ -3,9 +3,8 @@
 Security and robustness tests.
 
 1. IP blocked (allowed_hosts restricts to 8.8.8.8) → connection refused/closed
-2. enabled=False → relay accepts but does not forward (dry-run 250)
-3. Empty MAIL FROM (null sender / bounce) → accepted with 250
-4. Invalid sender address (bare word, no @) → SMTP 501 or 503 from aiosmtpd
+2. Empty MAIL FROM (null sender / bounce) → accepted with any valid SMTP code
+3. Invalid recipient address (bare word, no @) → SMTP 501 from handle_RCPT
 """
 
 import os
@@ -17,7 +16,7 @@ sys.path.insert(0, os.path.dirname(SCRIPT_DIR))
 
 from tests.helpers import (
     make_test_config, start_server, stop_server,
-    send_mail, wait_for_csv, read_csv, make_temp_csv,
+    make_temp_csv,
     config_port,
 )
 
@@ -53,36 +52,8 @@ def run_improper_usage_test():
         stop_server(proc)
         os.remove(config_path)
 
-    # ── Test 2: enabled=False → dry-run accepts with 250 ──────────────
-    print("\nTest 2: enabled=False → relay accepts (250) but does not forward")
-    csv_path = make_temp_csv()
-    config_path, _ = _make_config_with({'enabled': False}, csv_path=csv_path)
-    proc = start_server(config_path, PORT)
-    try:
-        code, _ = send_mail('alice@example.com', 'bob@example.net', PORT)
-        if code == 250:
-            print("  ✅ Got 250 in dry-run mode")
-            passed += 1
-        else:
-            print(f"  ❌ Expected 250, got {code}")
-            failed += 1
-
-        wait_for_csv(csv_path, 1)
-        rows = read_csv(csv_path)
-        host = rows[0]['host'] if rows else 'MISSING'
-        if host in ('n/a', ''):
-            print(f"  ✅ CSV shows no forwarding host (host={host!r})")
-            passed += 1
-        else:
-            print(f"  ❌ Expected no host in dry-run CSV, got: {host!r}")
-            failed += 1
-    finally:
-        stop_server(proc)
-        os.remove(config_path)
-        os.remove(csv_path)
-
-    # ── Test 3: null sender (bounce message) ──────────────────────────
-    print("\nTest 3: null sender <> → accepted (DSN/bounce convention)")
+    # ── Test 2: null sender (bounce message) ──────────────────────────
+    print("\nTest 2: null sender <> → accepted (DSN/bounce convention)")
     csv_path = make_temp_csv()
     config_path, _ = _make_config_with(
         {'local_domains': ['local.example.com']}, csv_path=csv_path
@@ -109,8 +80,8 @@ def run_improper_usage_test():
         os.remove(config_path)
         os.remove(csv_path)
 
-    # ── Test 4: malformed recipient (no @) → SMTP 501/503 ─────────────
-    print("\nTest 4: malformed recipient (no domain) → SMTP error")
+    # ── Test 3: malformed recipient (no @) → SMTP 501 ─────────────────
+    print("\nTest 3: malformed recipient (no domain) → SMTP error")
     config_path, _ = _make_config_with({})
     proc = start_server(config_path, PORT)
     try:

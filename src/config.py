@@ -155,7 +155,6 @@ class Config:
         self.csv_buffer = []  # kept for compat; no longer used
         self.csv_lock = threading.Lock()
         self.csv_flush_thread = None
-        self.enabled = False
         self.reject_sender_login_mismatch = False
         self.allowed_ips = set()
         self.local_networks = []
@@ -276,7 +275,6 @@ class Config:
                 self.config_dict['config'] = {}
 
             cfg = self.config_dict['config']
-            self.enabled = cfg.get('enabled', self.enabled)
             self.reject_sender_login_mismatch = cfg.get('reject_sender_login_mismatch', self.reject_sender_login_mismatch)
             self.log_file = cfg.get('log_file', '/var/log/jolly-relay.log')
             self.csv_file = cfg.get('csv_file', None) or None

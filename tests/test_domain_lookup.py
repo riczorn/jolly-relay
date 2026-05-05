@@ -45,7 +45,6 @@ def _mock_resolve(domain, _record_type):
 def _make_config():
     config_data = {
         'config': {
-            'enabled': True,
             'bind_host': '127.0.0.1',
             'bind_port': 19999,
             'verbose': False,

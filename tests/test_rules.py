@@ -63,7 +63,6 @@ def main():
     with open(config_path_arg) as f:
         config_data = yaml.safe_load(f)
     config_data.setdefault('config', {})
-    config_data['config']['enabled']  = True
     config_data['config']['bind_port'] = PORT
     config_data['config']['verbose']   = False
     config_data['config'].pop('csv_file', None)

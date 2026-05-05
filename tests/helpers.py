@@ -6,10 +6,10 @@ All E2E tests:
   2. Submit mail via smtplib (plain SMTP — fine for the test client).
   3. Wait briefly, then read the CSV log to check routing decisions.
 
-The relay has enabled:true but its outbound leg will fail (no real MXes
-in the test config); the SMTP response to the test client will therefore
-be 4xx/5xx, which is expected and tested where relevant.  Routing
-decisions are always verified via the CSV, not by checking delivery.
+The relay's outbound leg will fail (no real MXes in the test config);
+the SMTP response to the test client will therefore be 4xx/5xx, which is
+expected and tested where relevant.  Routing decisions are always verified
+via the CSV, not by checking delivery.
 """
 
 import os
@@ -73,7 +73,6 @@ def make_test_config(overrides=None, port=None, csv_path=None):
         config_data['config'] = {}
 
     cfg = config_data['config']
-    cfg['enabled'] = True
     cfg['verbose'] = False
 
     if port is not None:
@@ -142,7 +141,7 @@ def send_mail(sender, recipient, port, body=None, timeout=5):
     try:
         with smtplib.SMTP('127.0.0.1', port, timeout=timeout) as smtp:
             smtp.ehlo('test.relay')
-            refused = smtp.sendmail(sender, [recipient], body)
+            smtp.sendmail(sender, [recipient], body)
             # sendmail raises on error; if we get here it's 250
             return 250, "OK"
     except smtplib.SMTPRecipientsRefused as e:

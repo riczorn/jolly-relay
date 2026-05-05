@@ -2,8 +2,6 @@
 # Mirrors jolly-relay.yaml.example but uses host:port address format.
 
 config:
-  enabled: true
-
   log_file: /var/log/jolly-relay.log
   csv_file: /var/log/jolly-relay-messages.csv
 

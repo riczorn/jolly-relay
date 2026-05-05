@@ -34,10 +34,6 @@
 # you'll have one group for each difficult recipient.
 
 config:
-  # if not enabled, mail is accepted and logged but NOT forwarded.
-  # Useful for testing routing rules before going live.
-  enabled: false
-
   # unless the path is absolute, this will default to the
   # folder containing the calling script.
   # if you do NOT wish to log, just omit this value.

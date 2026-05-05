@@ -105,14 +105,6 @@ class RelayHandler:
         port = self.config.local_delivery_port
         mx_label = f"{host}:{port}"
 
-        if not self.config.enabled:
-            self.config.print_csv(sender, recipient, "local", "n/a",
-                                  direction=direction, client_address=client_ip)
-            log_request(sender, recipient, "local", mx_label,
-                        "DRY-RUN accepted", envelope,
-                        direction=direction, client_address=client_ip)
-            return 250, "Dry-run accepted"
-
         log_debug(f"  LOCAL {sender} -> {recipient} via {host}:{port}")
 
         code, msg = await self._smtp_send(
@@ -131,15 +123,6 @@ class RelayHandler:
 
     async def _deliver_outbound(self, sender, recipient, envelope, client_ip, direction):
         """Select an external MX and deliver."""
-        if not self.config.enabled:
-            # Dry-run: log only, accept without forwarding
-            self.config.print_csv(sender, recipient, "n/a", "n/a",
-                                  direction=direction, client_address=client_ip)
-            log_request(sender, recipient, "n/a", "n/a",
-                        "DRY-RUN accepted", envelope,
-                        direction=direction, client_address=client_ip)
-            return 250, "Dry-run accepted"
-
         mx_server, group = self.mx_router(sender, recipient, self.config.cache_ttl)
 
         if not mx_server:
