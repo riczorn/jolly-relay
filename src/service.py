@@ -21,7 +21,7 @@ import psutil
 from aiosmtpd.controller import Controller
 from aiosmtpd.smtp import SMTP as SMTPProtocol
 
-from src.config import log, log_debug, log_to_file, log_request
+from src.logging import log, log_debug, log_to_file, log_request
 
 GC_INTERVAL = 3600
 STATS_INTERVAL = 300
@@ -123,7 +123,7 @@ class RelayHandler:
 
     async def _deliver_outbound(self, sender, recipient, envelope, client_ip, direction):
         """Select an external MX and deliver."""
-        mx_server, group = await self.mx_router(sender, recipient, self.config.cache_ttl)
+        mx_server, group = await self.mx_router(sender, recipient)
 
         if not mx_server:
             self.config.print_csv(sender, recipient, group or "n/a", "n/a",

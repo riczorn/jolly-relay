@@ -2,7 +2,7 @@
 """
 Unit test for MX-based recipient rule matching.
 
-Loads jolly-relay.py in-process and monkey-patches aiodns.DNSResolver so
+Loads Config in-process and monkey-patches aiodns.DNSResolver so
 no real DNS queries are made.  Verifies that:
   1. A domain whose MX record contains 'protection.outlook.com' matches
      the 'microsoft' recipient rule.
@@ -14,13 +14,15 @@ import os
 import sys
 import tempfile
 import yaml
-import importlib.util
 
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
-APP_PATH    = os.path.join(PROJECT_DIR, 'jolly-relay.py')
 
 sys.path.insert(0, PROJECT_DIR)
+
+from src.config import Config
+import src.router as router_module
+from src.router import get_mx_for_message
 
 
 class _MockAnswer:
@@ -69,21 +71,33 @@ def _make_config():
     return path
 
 
+class _FakeService:
+    """Minimal stand-in for RelayService (cache + config reference)."""
+    def __init__(self, config):
+        import threading
+        self.config = config
+        self.mx_cache = {}
+        self.cache_lock = threading.Lock()
+
+
 def test_domain_lookup():
+    import argparse
+    # Prevent parse_args from reading pytest/test runner argv
+    import unittest.mock as mock
+    with mock.patch('sys.argv', ['jolly-relay.py']):
+        config = Config()
+
     config_path = _make_config()
+    config.config_file = config_path
+    config.verbose = False
+    config.load()
 
-    spec = importlib.util.spec_from_file_location('jolly_relay', APP_PATH)
-    jmx  = importlib.util.module_from_spec(spec)
-    sys.modules['jolly_relay'] = jmx
-    spec.loader.exec_module(jmx)
+    service = _FakeService(config)
 
-    jmx.config.config_file = config_path
-    jmx.config.verbose = False
-    jmx.config.load()
-
-    # Patch aiodns.DNSResolver with our mock so no real DNS queries happen
+    # Patch the module-level DNS resolver with our mock
     import aiodns
     aiodns.DNSResolver = _MockResolver
+    router_module._dns_resolver = None  # force re-creation with mock class
 
     print('\n--- Domain MX lookup unit test ---\n')
     passed = 0
@@ -93,7 +107,7 @@ def test_domain_lookup():
         # Test 1: MX record contains 'protection.outlook.com' → microsoft group
         print('Test 1: user@microsoft.com (MX has protection.outlook.com)')
         server, group = asyncio.run(
-            jmx.get_mx_for_message('sender@example.com', 'user@microsoft.com', 3600)
+            get_mx_for_message('sender@example.com', 'user@microsoft.com', config, service)
         )
         host = server.address if server else None
         print(f'  server={host}, group={group}')
@@ -107,7 +121,7 @@ def test_domain_lookup():
         # Test 2: MX record does not match any rule → no route
         print('\nTest 2: user@other.com (MX is mail.other.com)')
         server, group = asyncio.run(
-            jmx.get_mx_for_message('sender@example.com', 'user@other.com', 3600)
+            get_mx_for_message('sender@example.com', 'user@other.com', config, service)
         )
         host = server.address if server else None
         print(f'  server={host}, group={group}')

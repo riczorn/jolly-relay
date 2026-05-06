@@ -125,9 +125,9 @@ postfix reload
 
 ### Production configuration
 
-By all means I know it takes a bit of work, but do run a few tests first.
+I know it takes a bit of work, but by all means do run a few tests first.
 
-Once you are satisfied your configuration works,
+Once you are satisfied your configuration works, remove the transport map created above, and
 
 ---
 

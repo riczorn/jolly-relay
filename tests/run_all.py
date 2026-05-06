@@ -6,15 +6,17 @@ import subprocess
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 TEST_FILES = [
-    "test_domain_lookup.py",   # in-process unit test — runs first, fastest
+    "test_domain_lookup.py",      # in-process unit test — runs first, fastest
+    "test_config_validation.py",  # in-process validation test
     "test_simple.py",
     "test_direction.py",
     "test_roundrobin.py",
     "test_improper_usage.py",
     "test_auto_populate.py",
     "test_full.py",
+    "test_smtp_e2e.py",           # end-to-end delivery test
     "load_test.py",
-    # "load_concurrent.py",   # uncomment for concurrency stress test
+    # "load_concurrent.py",       # uncomment for concurrency stress test
 ]
 
 

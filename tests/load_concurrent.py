@@ -16,27 +16,36 @@ import re
 import time
 import threading
 import traceback
-import importlib.util
+import unittest.mock as mock
 
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
-APP_PATH    = os.path.join(PROJECT_DIR, 'jolly-relay.py')
 CONFIG_PATH = os.path.join(SCRIPT_DIR, 'jolly-relay-test.yaml')
 ADDRESSES_PATH = os.path.join(SCRIPT_DIR, 'payloads', 'addresses.txt')
 
-NUM_THREADS          = 24
+NUM_THREADS           = 24
 ITERATIONS_PER_THREAD = 791
 
 sys.path.insert(0, PROJECT_DIR)
 
-spec = importlib.util.spec_from_file_location('jolly_relay', APP_PATH)
-jmx  = importlib.util.module_from_spec(spec)
-sys.modules['jolly_relay'] = jmx
-spec.loader.exec_module(jmx)
+from src.config import Config
+from src.router import get_mx_for_message
 
-jmx.config.config_file = CONFIG_PATH
-jmx.config.verbose = False
-jmx.config.load()
+with mock.patch('sys.argv', ['jolly-relay.py']):
+    config = Config()
+config.config_file = CONFIG_PATH
+config.verbose = False
+config.load()
+
+
+class _Service:
+    def __init__(self, cfg):
+        self.config = cfg
+        self.mx_cache = {}
+        self.cache_lock = threading.Lock()
+
+
+service = _Service(config)
 
 with open(ADDRESSES_PATH) as f:
     lines = f.read().strip().splitlines()[1:]
@@ -61,7 +70,7 @@ errors_lock   = threading.Lock()
 async def _worker_async():
     for _ in range(ITERATIONS_PER_THREAD):
         for sender, recipient in address_pairs:
-            await jmx.get_mx_for_message(sender, recipient, 3600)
+            await get_mx_for_message(sender, recipient, config, service)
 
 
 def worker(thread_id):
@@ -94,13 +103,12 @@ if thread_errors:
     for tid, exc, tb in thread_errors:
         errors.append(f'Thread {tid} raised {exc.__class__.__name__}: {exc}\n{tb}')
 
-for server in jmx.config.servers_obj.servers:
+for server in config.servers_obj.servers:
     if server.mails_sent < 0:
         errors.append(f'Server {server.name} has negative mails_sent ({server.mails_sent})')
 
-group_names = [g for g in vars(jmx.config.server_groups) if not g.startswith('__')]
-for gname in group_names:
-    for server in getattr(jmx.config.server_groups, gname).servers:
+for gname, grp in config.server_groups.items():
+    for server in grp.servers:
         if server.mails_sent < 0:
             errors.append(f'Group {gname} server {server.name}: negative mails_sent')
 
@@ -114,4 +122,4 @@ if errors:
     sys.exit(1)
 
 print('\n✅ No concurrency issues')
-print(jmx.config.print_usage())
+print(config.print_usage())
