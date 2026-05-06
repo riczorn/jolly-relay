@@ -2,13 +2,14 @@
 """
 Unit test for MX-based recipient rule matching.
 
-Loads jolly-relay.py in-process and mocks dns.resolver.resolve so no
-real DNS queries are made.  Verifies that:
+Loads jolly-relay.py in-process and monkey-patches aiodns.DNSResolver so
+no real DNS queries are made.  Verifies that:
   1. A domain whose MX record contains 'protection.outlook.com' matches
      the 'microsoft' recipient rule.
   2. A domain with an unrelated MX record produces no route (n/a).
 """
 
+import asyncio
 import os
 import sys
 import tempfile
@@ -22,24 +23,23 @@ APP_PATH    = os.path.join(PROJECT_DIR, 'jolly-relay.py')
 sys.path.insert(0, PROJECT_DIR)
 
 
-class _MockExchange:
-    def __init__(self, name):
-        self._name = name
-    def to_text(self):
-        return self._name
-
-
 class _MockAnswer:
-    def __init__(self, exchange):
-        self.exchange = _MockExchange(exchange)
+    def __init__(self, host, priority=10):
+        self.host = host
+        self.priority = priority
 
 
-def _mock_resolve(domain, _record_type):
-    if domain == 'microsoft.com':
-        return [_MockAnswer('microsoft-com.mail.protection.outlook.com.')]
-    elif domain == 'other.com':
-        return [_MockAnswer('mail.other.com.')]
-    raise Exception('NXDOMAIN')
+_MX_MAP = {
+    'microsoft.com': [_MockAnswer('microsoft-com.mail.protection.outlook.com.')],
+    'other.com':     [_MockAnswer('mail.other.com.')],
+}
+
+
+class _MockResolver:
+    async def query(self, domain, _record_type):
+        if domain in _MX_MAP:
+            return _MX_MAP[domain]
+        raise Exception('NXDOMAIN')
 
 
 def _make_config():
@@ -81,8 +81,9 @@ def test_domain_lookup():
     jmx.config.verbose = False
     jmx.config.load()
 
-    # Inject the mock so no real DNS queries happen
-    jmx.dns.resolver.resolve = _mock_resolve
+    # Patch aiodns.DNSResolver with our mock so no real DNS queries happen
+    import aiodns
+    aiodns.DNSResolver = _MockResolver
 
     print('\n--- Domain MX lookup unit test ---\n')
     passed = 0
@@ -91,8 +92,8 @@ def test_domain_lookup():
     try:
         # Test 1: MX record contains 'protection.outlook.com' → microsoft group
         print('Test 1: user@microsoft.com (MX has protection.outlook.com)')
-        server, group = jmx.get_mx_for_message(
-            'sender@example.com', 'user@microsoft.com', 3600
+        server, group = asyncio.run(
+            jmx.get_mx_for_message('sender@example.com', 'user@microsoft.com', 3600)
         )
         host = server.address if server else None
         print(f'  server={host}, group={group}')
@@ -105,8 +106,8 @@ def test_domain_lookup():
 
         # Test 2: MX record does not match any rule → no route
         print('\nTest 2: user@other.com (MX is mail.other.com)')
-        server, group = jmx.get_mx_for_message(
-            'sender@example.com', 'user@other.com', 3600
+        server, group = asyncio.run(
+            jmx.get_mx_for_message('sender@example.com', 'user@other.com', 3600)
         )
         host = server.address if server else None
         print(f'  server={host}, group={group}')

@@ -58,6 +58,10 @@ config:
   # Leave empty or set to 0.0.0.0 to accept from all.
   allowed_hosts: [127.0.0.1]
 
+  # Maximum number of domains to hold in the MX DNS cache.
+  # When the limit is reached the oldest entry is evicted. 0 = unlimited.
+  cache_max_size: 10000
+
   # Where to forward inbound mail (recipient domain is in local_domains).
   # Format: host:port
   local_delivery: 127.0.0.1:25

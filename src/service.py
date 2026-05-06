@@ -123,7 +123,7 @@ class RelayHandler:
 
     async def _deliver_outbound(self, sender, recipient, envelope, client_ip, direction):
         """Select an external MX and deliver."""
-        mx_server, group = self.mx_router(sender, recipient, self.config.cache_ttl)
+        mx_server, group = await self.mx_router(sender, recipient, self.config.cache_ttl)
 
         if not mx_server:
             self.config.print_csv(sender, recipient, group or "n/a", "n/a",
@@ -180,11 +180,16 @@ class RelayHandler:
             )
             return 250, "OK"
         except aiosmtplib.SMTPRecipientsRefused as e:
-            # Permanent rejection from remote
+            log(f"ERROR: Permanent rejection from {host}:{port} for {recipients}: {e}", to_stderr=True)
             return 550, str(e)
         except aiosmtplib.SMTPException as e:
+            log(f"WARNING: SMTP error from {host}:{port} for {recipients}: {e}", to_stderr=True)
             return 451, f"Upstream SMTP error: {e}"
-        except (OSError, asyncio.TimeoutError) as e:
+        except asyncio.TimeoutError:
+            log(f"WARNING: Timeout delivering to {host}:{port} for {recipients}", to_stderr=True)
+            return 451, f"Connection timed out to {host}:{port}"
+        except OSError as e:
+            log(f"WARNING: Connection failed to {host}:{port} for {recipients}: {e}", to_stderr=True)
             return 451, f"Connection failed: {e}"
 
 
@@ -253,16 +258,39 @@ class RelayService:
 
     # ── Signal handlers ───────────────────────────────────────────────
 
-    def _shutdown(self, loop):
-        self.config.verbose = True
-        self.config.flush_csv()
-        log(self.config.print_usage())
-        log(self.print_stats())
-        loop.stop()
+    def _shutdown(self, controller, loop):
+        """
+        Graceful shutdown:
+          1. Stop accepting new connections immediately.
+          2. Wait up to 5 s for any in-flight handle_DATA coroutines to finish.
+          3. Print stats and stop the event loop.
+        """
+        log("Shutting down — stopping new connections...")
+        controller.stop()
 
-    def register_signals(self, loop):
+        async def _drain_and_stop():
+            # Collect all running tasks except this one.
+            current = asyncio.current_task()
+            pending = [t for t in asyncio.all_tasks(loop) if t is not current]
+            if pending:
+                log(f"Waiting up to 5s for {len(pending)} in-flight message(s)...")
+                _, still_pending = await asyncio.wait(pending, timeout=5.0)
+                if still_pending:
+                    log(f"Timeout: cancelling {len(still_pending)} unfinished task(s)")
+                    for t in still_pending:
+                        t.cancel()
+
+            self.config.verbose = True
+            self.config.flush_csv()
+            log(self.config.print_usage())
+            log(self.print_stats())
+            loop.stop()
+
+        loop.create_task(_drain_and_stop())
+
+    def register_signals(self, controller, loop):
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, lambda: self._shutdown(loop))
+            loop.add_signal_handler(sig, lambda: self._shutdown(controller, loop))
 
     # ── Main entry point ──────────────────────────────────────────────
 
@@ -281,7 +309,7 @@ class RelayService:
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        self.register_signals(loop)
+        self.register_signals(controller, loop)
 
         bg = threading.Thread(target=self._jobs_thread, daemon=True)
         bg.start()
@@ -291,7 +319,6 @@ class RelayService:
             log(f"Jolly Relay listening on {self.config.host}:{self.config.port}")
             loop.run_forever()
         finally:
-            controller.stop()
             self.config.flush_csv()
 
 

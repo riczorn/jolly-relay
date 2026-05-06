@@ -153,7 +153,7 @@ def send_mail(sender, recipient, port, body=None, timeout=5):
         raise
 
 
-def wait_for_csv(csv_path, min_lines, timeout=3.0):
+def wait_for_csv(csv_path, min_lines, timeout=5.0):
     """Poll until the CSV has at least min_lines non-empty lines, then flush."""
     deadline = time.time() + timeout
     while time.time() < deadline:

@@ -8,6 +8,7 @@ Validates thread-safety invariants:
   - No server has a negative mails_sent count
 """
 
+import asyncio
 import os
 import sys
 import io
@@ -57,12 +58,16 @@ thread_errors = []
 errors_lock   = threading.Lock()
 
 
+async def _worker_async():
+    for _ in range(ITERATIONS_PER_THREAD):
+        for sender, recipient in address_pairs:
+            await jmx.get_mx_for_message(sender, recipient, 3600)
+
+
 def worker(thread_id):
     try:
         barrier.wait()
-        for _ in range(ITERATIONS_PER_THREAD):
-            for sender, recipient in address_pairs:
-                jmx.get_mx_for_message(sender, recipient, 3600)
+        asyncio.run(_worker_async())
     except Exception as e:
         with errors_lock:
             thread_errors.append((thread_id, e, traceback.format_exc()))

@@ -4,7 +4,9 @@ Load test: calls get_mx_for_message() in-process over all address pairs
 from addresses.txt for ITERATIONS cycles (~53 000 routing calls).
 
 This tests the routing logic and round-robin scheduler at speed without
-any network I/O.  Console output is suppressed during the hot loop.
+any real network I/O.  DNS lookups hit the in-process cache after the
+first pass; misses resolve instantly to [] for unknown test domains.
+Console output is suppressed during the hot loop.
 """
 
 import os
@@ -12,6 +14,7 @@ import sys
 import io
 import re
 import time
+import asyncio
 import importlib.util
 
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
@@ -50,10 +53,15 @@ print(f'Load test: {len(address_pairs)} pairs × {ITERATIONS} iterations = {tota
 real_stdout = sys.stdout
 sys.stdout  = io.StringIO()
 
+
+async def _run():
+    for _ in range(ITERATIONS):
+        for sender, recipient in address_pairs:
+            await jmx.get_mx_for_message(sender, recipient, 3600)
+
+
 start = time.time()
-for _ in range(ITERATIONS):
-    for sender, recipient in address_pairs:
-        jmx.get_mx_for_message(sender, recipient, 3600)
+asyncio.run(_run())
 elapsed = time.time() - start
 
 sys.stdout = real_stdout

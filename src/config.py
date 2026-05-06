@@ -162,6 +162,7 @@ class Config:
 
         self.verbose = False
         self.cache_ttl = 3600
+        self.cache_max_size = 10000
         self.timeout = 600
         self.port = 9725
         self.host = '127.0.0.1'
@@ -276,6 +277,7 @@ class Config:
 
             cfg = self.config_dict['config']
             self.reject_sender_login_mismatch = cfg.get('reject_sender_login_mismatch', self.reject_sender_login_mismatch)
+            self.cache_max_size = int(cfg.get('cache_max_size', self.cache_max_size))
             self.log_file = cfg.get('log_file', '/var/log/jolly-relay.log')
             self.csv_file = cfg.get('csv_file', None) or None
             self.graylog_server = cfg.get('graylog_server', None) or None
@@ -517,19 +519,29 @@ class Config:
         log_to_file(output)
         return output
 
-    def print_csv(self, sender, recipient, mx_group, mx_host, direction="", client_address="", sasl_username=""):
-        if not self.csv_file:
-            return
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        csv_line = f"{now_str};{sender};{recipient};{mx_group};{mx_host};{client_address};{direction}"
-        sasl_info = f"sasl:{sasl_username}" if (sasl_username and sasl_username != sender) else ""
-        csv_line += f";{sasl_info}\n"
+    def _write_csv_line(self, csv_line):
+        """Blocking file write — must be called via run_in_executor, not on the event loop."""
         try:
             with self.csv_lock:
                 with open(self.csv_file, 'a') as f:
                     f.write(csv_line)
         except Exception as e:
             log(f"ERROR: Failed to write to CSV log {self.csv_file} ({e})", to_stderr=True)
+
+    def print_csv(self, sender, recipient, mx_group, mx_host, direction="", client_address="", sasl_username=""):
+        if not self.csv_file:
+            return
+        import asyncio
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        csv_line = f"{now_str};{sender};{recipient};{mx_group};{mx_host};{client_address};{direction}"
+        sasl_info = f"sasl:{sasl_username}" if (sasl_username and sasl_username != sender) else ""
+        csv_line += f";{sasl_info}\n"
+        try:
+            loop = asyncio.get_running_loop()
+            loop.run_in_executor(None, self._write_csv_line, csv_line)
+        except RuntimeError:
+            # Called outside of an async context (e.g. shutdown flush) — write directly.
+            self._write_csv_line(csv_line)
 
     def flush_csv(self):
         pass  # writes are now immediate; kept for compatibility with callers

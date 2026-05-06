@@ -156,6 +156,10 @@ config:
   auto_populate_local_domains: true
   postfix_virtual_file: /etc/postfix/virtual
 
+  # MX DNS cache: maximum number of domains to cache.
+  # When the limit is reached the oldest entry is evicted. 0 = unlimited.
+  cache_max_size: 10000
+
   log_file: /var/log/jolly-relay.log
   csv_file: /var/log/jolly-relay-messages.csv
   verbose: false
