@@ -183,6 +183,7 @@ class Config:
         self.logger = self._setup_logger(self.log_file)
 
         self._load_servers()
+        self._resolve_inline_lists()
         self._load_combined_rules()
 
         # Validate all rule references resolve to known groups/servers.
@@ -246,6 +247,35 @@ class Config:
                     to_stderr=True)
                 self.servers_default_action = "DUNNO"
 
+    def _resolve_inline_lists(self):
+        """
+        Sender/recipient rules may specify an inline server list instead of a
+        group name, e.g.:  anshin.it: [mx4]
+
+        Convert each such list to an anonymous Servers group stored in
+        server_groups under a synthetic key "__inline_<rule_type>_<rule_key>",
+        then rewrite the config_dict entry to that key string so the rest of
+        the load pipeline and router see only string group names.
+        """
+        hosts_dict = self.config_dict.get('servers', {}).get('hosts', {})
+        for rule_type in ('sender_rules', 'recipient_rules'):
+            rules = self.config_dict.get(rule_type) or {}
+            for rule_key, value in list(rules.items()):
+                if not isinstance(value, list):
+                    continue
+                group_hosts = {}
+                for name in value:
+                    if name in hosts_dict:
+                        group_hosts[name] = hosts_dict[name]
+                    else:
+                        log(f"WARNING: {rule_type}['{rule_key}'] references unknown server '{name}'",
+                            to_stderr=True)
+                if group_hosts:
+                    synthetic_key = f"__inline_{rule_type}_{rule_key}"
+                    self.server_groups[synthetic_key] = Servers(group_hosts)
+                    rules[rule_key] = synthetic_key
+                    log_debug(f"  Inline list {rule_type}['{rule_key}'] → group '{synthetic_key}'")
+
     def _load_combined_rules(self):
         combined_section = self.config_dict.get('combined_rules') or {}
         hosts_dict = self.config_dict.get('servers', {}).get('hosts', {})
@@ -292,13 +322,20 @@ class Config:
 
         for rule_type in ('sender_rules', 'recipient_rules'):
             rules = self.config_dict.get(rule_type) or {}
-            for rule_key, group_name in rules.items():
+            for rule_key, value in rules.items():
                 if rule_key == 'default':
                     continue
-                if not self._group_or_server_exists(group_name, hosts_dict):
-                    errors.append(
-                        f"{rule_type}['{rule_key}'] references unknown group/server '{group_name}'"
-                    )
+                if isinstance(value, list):
+                    for name in value:
+                        if name not in hosts_dict:
+                            errors.append(
+                                f"{rule_type}['{rule_key}'] references unknown server '{name}'"
+                            )
+                elif isinstance(value, str):
+                    if not self._group_or_server_exists(value, hosts_dict):
+                        errors.append(
+                            f"{rule_type}['{rule_key}'] references unknown group/server '{value}'"
+                        )
 
         for key, server_list in (self.config_dict.get('combined_rules') or {}).items():
             if isinstance(server_list, str):
