@@ -98,13 +98,12 @@ Postfix submits outbound mail to jolly-relay instead of delivering directly.
 
 ### Testing configuration
 
-For testing, you can add `transport_maps` entries that route some testing domains through `smtp:127.0.0.1:9725` and keep normal Postfix configuration for all other cases.
+For testing, you can configure Postfix to only invoke Jolly Relay for a test sender. Then you can try it at will sending from the test sender address, and view stats and logs.
+Add an entry in `sender_dependent_default_transport_maps` file to route the test address through `smtp:127.0.0.1:9725` and keep normal Postfix configuration for all other cases.
 
-`/etc/postfix/transport`
+`/etc/postfix/relay_by_sender`
 
 ```
-example.com   smtp:127.0.0.1:9725
-example.net   smtp:127.0.0.1:9725
 testuser@yourdomain.com   smtp:127.0.0.1:9725
 ```
 
@@ -113,21 +112,19 @@ Make sure the transport map is referenced in `main.cf`
 `/etc/postfix/main.cf`
 
 ```
-transport_maps = hash:/etc/postfix/transport
+sender_dependent_default_transport_maps = hash:/etc/postfix/relay_by_sender
 ```
 
 Rebuild the map and reload:
 
 ```bash
-postmap /etc/postfix/transport
+postmap /etc/postfix/relay_by_sender
 postfix reload
 ```
 
 ### Production configuration
 
-I know it takes a bit of work, but by all means do run a few tests first.
-
-Once you are satisfied your configuration works, remove the transport map created above, and
+Once you are satisfied that configuration works, remove the transport map created above, and
 
 ---
 
@@ -275,28 +272,6 @@ Group bad
     mx6         79,248 |  32.2579 /  32.2581
     mx7         79,249 |  32.2583 /  32.2581
 ```
-
----
-
-## Testing your rules
-
-### 1. Collect traffic with dry-run
-
-Set `enabled: false` and start the relay. All mail is accepted and logged to the CSV without being forwarded. Collect enough real traffic to cover your rule combinations.
-
-### 2. Replay with test_rules.py
-
-```bash
-python3 tests/test_rules.py \
-  -c /etc/postfix/jolly-relay.yaml \
-  -i /var/log/jolly-relay-messages.csv
-```
-
-This replays every `sender → recipient` pair from the CSV through the relay and prints the routing decision. It refuses to run if the input and output CSV are the same file.
-
-### 3. Go live
-
-Once the decisions look right, set `enabled: true` and reload. Watch the logs for a day or two, then turn off `verbose` to reduce noise.
 
 ---
 
