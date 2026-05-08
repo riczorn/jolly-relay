@@ -108,7 +108,7 @@ class RelayHandler:
         log_debug(f"  LOCAL {sender} -> {recipient} via {host}:{port}")
 
         code, msg = await self._smtp_send(
-            host, port, sender, [recipient], envelope.content
+            host, port, sender, [recipient], envelope.content, use_tls=False
         )
 
         self.config.print_csv(sender, recipient, "local", mx_label,
@@ -140,7 +140,8 @@ class RelayHandler:
         log_debug(f"  OUTBOUND {sender} -> {recipient} via {mx_label} (group:{group})")
 
         code, msg = await self._smtp_send(
-            host, port, sender, [recipient], envelope.content
+            host, port, sender, [recipient], envelope.content,
+            use_tls=mx_server.use_tls,
         )
 
         self.config.print_csv(sender, recipient, group, mx_label,
@@ -156,10 +157,15 @@ class RelayHandler:
     # ── SMTP delivery ─────────────────────────────────────────────────
 
     @staticmethod
-    async def _smtp_send(host, port, sender, recipients, content):
+    async def _smtp_send(host, port, sender, recipients, content, use_tls=False):
         """
         Deliver via aiosmtplib.  Returns (code, message).
         4xx on any transient error so Postfix can retry.
+
+        TLS is selected by port:
+          25  / other → plain SMTP, no TLS (use_tls=False)
+          587         → STARTTLS after EHLO (use_tls=True, start_tls=True)
+          465         → implicit TLS from the start (use_tls=True, use_tls kwarg)
         """
         import aiosmtplib
 
@@ -169,6 +175,12 @@ class RelayHandler:
         else:
             raw = content
 
+        # Port 465 = implicit TLS (wrap the connection from the start).
+        # Port 587 = STARTTLS (negotiate after EHLO).
+        # All others (25, custom) = plain SMTP.
+        implicit_tls = use_tls and port == 465
+        starttls     = use_tls and port != 465
+
         try:
             await aiosmtplib.send(
                 raw,
@@ -177,6 +189,8 @@ class RelayHandler:
                 hostname=host,
                 port=port,
                 timeout=30,
+                use_tls=implicit_tls,
+                start_tls=starttls,
             )
             return 250, "OK"
         except aiosmtplib.SMTPRecipientsRefused as e:

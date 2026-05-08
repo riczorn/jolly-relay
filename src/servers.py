@@ -40,6 +40,12 @@ class Server:
         self.weight_target = 0.0
         self.weight_current = 0.0
         self.mails_sent = 0
+        # TLS behaviour derived from port:
+        #   25  → plain SMTP (no TLS)
+        #   465 → implicit TLS (use_tls=True, connect with TLS from the start)
+        #   587 → STARTTLS
+        #   other → plain SMTP
+        self.use_tls = port in (465, 587)
 
 
 class Servers:
@@ -61,7 +67,8 @@ class Servers:
             weight_sum += weight
             server = Server(name, info['address'], weight)
             self.servers.append(server)
-            log_debug(f"  {name}: {info['address']:30s} - {weight:4,d}")
+            tls_tag = " [tls]" if server.use_tls else ""
+            log_debug(f"  {name}: {info['address']:30s} - {weight:4,d}{tls_tag}")
 
         if self.servers and weight_sum > 0:
             for server in self.servers:

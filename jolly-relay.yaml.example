@@ -77,11 +77,9 @@ config:
 
 servers:
   hosts:
-    # Define your server adddresses (name or IP)
-    # along with the optional weight: param, which defaults to 100.
-    # the `weight` influences how often this server is chosen in the iteration,
-    # with 0 = not chosen at all and 100 = chosen on every iteration.
-    # the attribute name, i.e. `mx1`, is used below for creating groups
+    # Define your server addresses (name or IP) with optional parameters:
+    #   weight: how often this server is chosen (default 100; 0 = excluded)
+    # TLS is automatic based on port: 25 = plain SMTP, 587 = STARTTLS, 465 = implicit TLS.
     mx1:
       address: mx1.example.com:25
       weight: 100 # default
