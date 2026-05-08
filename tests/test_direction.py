@@ -4,7 +4,7 @@ Direction detection test.
 
 Verifies that mail addressed to a local domain is logged as INCOMING
 and mail addressed to an external domain is logged as OUTGOING.
-Uses the sample .eml payloads so the test is realistic.
+Uses the sample .eml payloads when available; falls back to stub bodies.
 """
 
 import os
@@ -26,6 +26,9 @@ def run_direction_test():
     passed = 0
     failed = 0
 
+    inbound_body  = load_sample_mail('inbound')   # None if file absent
+    outbound_body = load_sample_mail('outbound')  # None if file absent
+
     # local_domains contains 'local.example.com'; the inbound sample
     # mail targets user@local.example.com.
     csv_path = make_temp_csv()
@@ -36,17 +39,12 @@ def run_direction_test():
     )
     server_proc = start_server(config_path, PORT)
 
-    inbound_body  = load_sample_mail('inbound')
-    outbound_body = load_sample_mail('outbound')
-
     cases = [
         # (sender, recipient, body, expected_direction)
-        ('external@example.org', 'user@local.example.com', inbound_body,  'INCOMING'),
-        ('sender@example.com',   'recipient@gmail.com',    outbound_body,  'OUTGOING'),
-        # another local recipient
-        ('bounce@somewhere.net', 'admin@local.example.com', inbound_body,  'INCOMING'),
-        # external with no rule match → still OUTGOING
-        ('nobody@example.com',   'user@unknown-domain.xyz', None,           'OUTGOING'),
+        ('external@example.org', 'user@local.example.com',  inbound_body,  'INCOMING'),
+        ('sender@example.com',   'recipient@gmail.com',      outbound_body, 'OUTGOING'),
+        ('bounce@somewhere.net', 'admin@local.example.com',  inbound_body,  'INCOMING'),
+        ('nobody@example.com',   'user@unknown-domain.xyz',  None,          'OUTGOING'),
     ]
 
     print("\n--- Direction detection test ---\n")

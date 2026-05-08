@@ -20,10 +20,14 @@ PORT = config_port()
 
 
 def run_simple():
+    pairs = load_addresses()
+    if pairs is None:
+        print("SKIP: tests/payloads/addresses.txt not found.")
+        sys.exit(0)
+
     csv_path = make_temp_csv()
     config_path, _ = make_test_config(port=PORT, csv_path=csv_path)
     server_proc = start_server(config_path, PORT)
-    pairs = load_addresses()
 
     print(f"\n--- Simple smoke test: {len(pairs)} address pairs ---\n")
     print(f"{'SENDER':<35} {'RECIPIENT':<35} {'SMTP'}")

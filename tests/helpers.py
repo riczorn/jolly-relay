@@ -52,9 +52,13 @@ def config_port():
 
 
 def load_sample_mail(kind):
-    """Return the raw bytes of sample_inbound_mail.eml or sample_outbound_mail.eml."""
-    global _INBOUND_MAIL, _OUTBOUND_MAIL
+    """
+    Return the raw bytes of sample_inbound_mail.eml or sample_outbound_mail.eml.
+    Returns None if the file is not present (caller should skip the test).
+    """
     path = os.path.join(PAYLOADS_DIR, f'sample_{kind}_mail.eml')
+    if not os.path.exists(path):
+        return None
     with open(path, 'rb') as f:
         return f.read()
 
@@ -74,6 +78,8 @@ def make_test_config(overrides=None, port=None, csv_path=None):
 
     cfg = config_data['config']
     cfg['verbose'] = False
+    # Suppress file logging during tests; the file may not exist or be writable.
+    cfg.pop('log_file', None)
 
     if port is not None:
         cfg['bind_port'] = port
@@ -226,7 +232,12 @@ def resolve_expected(expected, server_addresses, group_addresses):
 
 
 def load_addresses():
-    """Return list of (sender, recipient, expected) from addresses.txt."""
+    """
+    Return list of (sender, recipient, expected) from addresses.txt.
+    Returns None if the file is not present (caller should skip the test).
+    """
+    if not os.path.exists(ADDRESSES_PATH):
+        return None
     pairs = []
     with open(ADDRESSES_PATH, 'r') as f:
         for line in f:

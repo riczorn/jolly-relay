@@ -28,6 +28,7 @@ def _make_config(default_action):
         data = yaml.safe_load(f)
     data['config']['bind_port'] = PORT
     data['config']['verbose'] = False
+    data['config'].pop('log_file', None)
     data['servers']['default'] = default_action
     fd, path = tempfile.mkstemp(suffix='.yaml')
     with os.fdopen(fd, 'w') as f:

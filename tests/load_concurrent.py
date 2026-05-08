@@ -47,6 +47,10 @@ class _Service:
 
 service = _Service(config)
 
+if not os.path.exists(ADDRESSES_PATH):
+    print("SKIP: tests/payloads/addresses.txt not found.")
+    sys.exit(0)
+
 with open(ADDRESSES_PATH) as f:
     lines = f.read().strip().splitlines()[1:]
 

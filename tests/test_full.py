@@ -25,6 +25,11 @@ PORT = config_port()
 
 
 def run_full_test():
+    address_pairs = load_addresses()
+    if address_pairs is None:
+        print("SKIP: tests/payloads/addresses.txt not found.")
+        sys.exit(0)
+
     csv_path = make_temp_csv()
     config_path, config_data = make_test_config(port=PORT, csv_path=csv_path)
     server_addresses, group_addresses = build_group_addresses(config_data)
@@ -35,7 +40,6 @@ def run_full_test():
     errors = []
 
     try:
-        address_pairs = load_addresses()
         print(f"\n--- Full routing test: {len(address_pairs)} address pairs ---\n")
 
         for lineno, (sender, recipient, expected_str) in enumerate(address_pairs, 1):

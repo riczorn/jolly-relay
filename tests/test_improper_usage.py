@@ -35,8 +35,10 @@ def run_improper_usage_test():
     failed = 0
 
     # ── Test 1: IP blocked ─────────────────────────────────────────────
-    print("\nTest 1: IP blocked (allowed_hosts=8.8.8.8 → our 127.0.0.1 is rejected)")
-    config_path, _ = _make_config_with({'allowed_hosts': ['8.8.8.8']})
+    # 192.0.2.1 is RFC 5737 TEST-NET-1 — never a real host, never resolves
+    # to 127.0.0.1, so the relay will always reject our local connection.
+    print("\nTest 1: IP blocked (allowed_hosts=192.0.2.1 → our 127.0.0.1 is rejected)")
+    config_path, _ = _make_config_with({'allowed_hosts': ['192.0.2.1']})
     proc = start_server(config_path, PORT)
     try:
         try:
